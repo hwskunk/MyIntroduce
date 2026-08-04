@@ -1,0 +1,32 @@
+# ── API keys & secrets ──
+.env
+*.env
+!*.env.example
+
+# ── 向量库 / SQLite ──
+milvus_data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ── 缓存与编译 ──
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ── IDE / OS ──
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ── 个人资料 / 隐私（不上传 GitHub）──
+data/
+connect.md
+SESSION_SUMMARY_1.md
+static/images/
+*.zip

@@ -1,0 +1,28 @@
+# ==========================================
+# MyIntroduce — 依赖清单（与 rag_env 环境一致）
+# ==========================================
+
+# Web 服务（FastAPI + Uvicorn）
+fastapi>=0.139.0
+uvicorn[standard]>=0.46.0
+python-multipart>=0.0.28
+sse-starlette>=3.4.4
+
+# LangChain + DashScope 兼容模式
+langchain>=1.2.0
+langchain-openai>=1.2.0
+
+# 向量数据库 (Lite 版，无需 Docker/服务)
+pymilvus>=3.0.0
+milvus-lite>=3.1.0
+
+# BM25 关键词检索
+rank-bm25>=0.2.2
+jieba>=0.42.1        # 可选：中文分词（缺失时自动回退字符级 bigram）
+
+# 文档解析（Docling — 统一处理 PDF/DOCX/XLSX/PPTX/HTML/图片）
+docling>=2.115.0
+rapidocr-onnxruntime>=1.4.0
+
+# 工具
+python-dotenv>=1.2.0

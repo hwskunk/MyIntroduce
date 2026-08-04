@@ -1,0 +1,360 @@
+/* ═══════════════════════════════════════════════════════════
+   MY_INTRO_KB — 终端骇客风格
+   配色：荧光绿 #0CF216（经典磷光绿）
+   bg #041008 / 主绿 #0CF216 / 文字 #c8ffd4 / 访客青 #00e5ff
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+    --bg: #041008;
+    --bg2: #08180c;
+    --green: #0CF216;
+    --text: #c8ffd4;
+    --dim: #35a04a;
+    --user: #00e5ff;
+    --warn: #ffb000;
+    --err: #ff5555;
+    --border: #1b6e29;
+    --mono: Consolas, "Courier New", "JetBrains Mono", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+body {
+    background-image:
+        radial-gradient(rgba(12, 242, 22,0.05) 1px, transparent 1px);
+    background-size: 26px 26px;
+}
+
+/* 扫描线 overlay */
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0) 0px,
+        rgba(0, 0, 0, 0) 2px,
+        rgba(12, 242, 22,0.025) 3px
+    );
+    z-index: 999;
+}
+
+::selection { background: var(--green); color: var(--bg); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); }
+::-webkit-scrollbar-thumb:hover { background: var(--green); }
+
+/* ── 终端窗口 ── */
+.term-window {
+    max-width: 860px;
+    margin: 30px auto;
+    background: var(--bg2);
+    border: 1px solid var(--green);
+    border-radius: 4px;
+    box-shadow: 0 0 24px rgba(12, 242, 22,0.15), inset 0 0 40px rgba(12, 242, 22,0.03);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    /* 高度完全随内容：内容少则窗口短，内容多则窗口长，无高度上限 */
+}
+
+.term-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: #071a0d;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: 1px;
+}
+.dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.dot-r { background: #ff5f56; }
+.dot-y { background: #ffbd2e; }
+.dot-g { background: #27c93f; }
+.tb-title {
+    margin-left: 10px;
+    color: var(--green);
+    font-size: 13px;
+    flex: 1;
+    text-align: center;
+    text-shadow: 0 0 8px rgba(12, 242, 22,0.5);
+}
+
+.term-status {
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--dim);
+    border-bottom: 1px dashed var(--border);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;  /* 状态栏公司名超长截断 */
+}
+.term-status .conn { color: var(--green); }
+
+/* ── 内容区 ── */
+.term-content {
+    padding: 16px;
+    flex: 1 1 auto;  /* basis=auto：内容少则随内容收缩；封顶后可按需压缩并内部滚动 */
+    overflow-y: auto;
+    min-height: 0;
+}
+
+/* ── 终端输出行 ── */
+.t-line { white-space: pre-wrap; word-break: break-word; margin: 2px 0; }
+.t-line .pfx { color: var(--green); }
+.t-line.ok { color: var(--green); }
+.t-line.warn { color: var(--warn); }
+.t-line.err { color: var(--err); }
+.t-line.dim { color: var(--dim); }
+.t-line.center { text-align: center; }
+
+/* 登录页说明面板（公司名称用途 & 安全性说明） */
+.landing-note {
+    border: 1px dashed var(--border);
+    border-left: 3px solid var(--dim);
+    padding: 10px 14px;
+    margin: 12px 0;
+    color: var(--dim);
+    font-size: 13px;
+    line-height: 1.8;
+}
+.landing-note .ln-title {
+    color: var(--green);
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+
+/* 闪烁动画（登录页不再用 .cursor，聊天打字光标 .typing::after 仍在用） */
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── 对话消息 ── */
+.msg {
+    margin: 10px 0;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    border-radius: 2px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.msg .who {
+    display: inline-block;
+    vertical-align: baseline;
+    max-width: 220px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;  /* 超长标签兜底：截断加省略号 */
+    font-size: 12px;
+    letter-spacing: 1px;
+    margin-right: 8px;
+    font-weight: bold;
+}
+.msg .body { white-space: normal; line-height: 1.7; }
+.msg.user { border-left-color: var(--user); }
+.msg.user .who { color: var(--user); }
+.msg.ai .who { color: var(--green); }
+.msg .sources { margin-top: 8px; font-size: 13px; color: var(--dim); border-top: 1px dashed var(--border); padding-top: 6px; }
+
+/* ── 知识库外：联系方式独立区块 ── */
+.contact-box {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    border-radius: 2px;
+}
+.contact-box .contact-title {
+    color: var(--green);
+    font-size: 12px;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+}
+.contact-box .contact-item {
+    display: flex;
+    gap: 10px;
+    font-size: 14px;
+    line-height: 1.8;
+}
+.contact-box .ci-label { color: var(--dim); min-width: 5em; }
+.contact-box .ci-value { color: var(--text); word-break: break-all; }
+
+/* 二维码 */
+.contact-box .contact-qr {
+    display: flex;
+    gap: 18px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+    flex-wrap: wrap;
+}
+.contact-box .qr-item { text-align: center; }
+.contact-box .qr-item img {
+    width: 150px;
+    height: 150px;
+    background: #fff;   /* 二维码需白底才易扫描 */
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    object-fit: contain;
+}
+.contact-box .qr-label { color: var(--dim); font-size: 12px; margin-top: 4px; }
+
+/* ── markdown 内容样式（终端主题）── */
+.msg .body p { margin: 0 0 8px; }
+.msg .body p:last-child { margin-bottom: 0; }
+.msg .body h1, .msg .body h2, .msg .body h3, .msg .body h4 {
+    color: var(--green); margin: 12px 0 6px; font-size: 1.05em; line-height: 1.4;
+}
+.msg .body h1 { font-size: 1.18em; }
+.msg .body ul, .msg .body ol { margin: 4px 0 8px; padding-left: 22px; }
+.msg .body li { margin: 3px 0; }
+.msg .body code {
+    background: var(--bg2); border: 1px solid var(--border);
+    padding: 1px 5px; border-radius: 2px; font-family: var(--mono);
+    font-size: 0.92em; color: var(--green);
+}
+.msg .body pre {
+    background: var(--bg); border: 1px solid var(--border);
+    padding: 10px; overflow-x: auto; border-radius: 2px; margin: 8px 0;
+}
+.msg .body pre code { background: none; border: none; padding: 0; color: var(--text); }
+.msg .body table { border-collapse: collapse; margin: 8px 0; width: 100%; }
+.msg .body th, .msg .body td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+.msg .body th { background: var(--bg); color: var(--green); }
+.msg .body blockquote { border-left: 3px solid var(--border); margin: 8px 0; padding: 2px 12px; color: var(--dim); }
+.msg .body strong { color: var(--green); }
+.msg .body a { color: var(--user); }
+.msg .body hr { border: none; border-top: 1px dashed var(--border); margin: 10px 0; }
+
+.typing::after {
+    content: "█";
+    color: var(--green);
+    animation: blink 1s step-end infinite;
+}
+
+/* ── 输入行 ── */
+.term-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    background: #071a0d;
+}
+.term-input-row .prompt { color: var(--green); font-weight: bold; }
+.term-input-row input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 15px;
+    padding: 8px 10px;
+    outline: none;
+    caret-color: var(--green);
+}
+.term-input-row input:focus { border-color: var(--green); box-shadow: 0 0 8px rgba(12, 242, 22,0.3); }
+
+/* ── 按钮 ── */
+.btn {
+    background: var(--bg);
+    color: var(--green);
+    border: 1px solid var(--green);
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 8px 16px;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.btn:hover { background: var(--green); color: var(--bg); box-shadow: 0 0 12px rgba(12, 242, 22,0.5); }
+.btn.danger { border-color: var(--err); color: var(--err); }
+.btn.danger:hover { background: var(--err); color: var(--bg); box-shadow: 0 0 12px rgba(255, 85, 85, 0.5); }
+
+.term-footer {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    background: #071a0d;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.term-footer .hint { color: var(--dim); font-size: 12px; margin-right: auto; align-self: center; }
+
+/* ── 管理员 Tabs ── */
+.tabs { display: flex; gap: 4px; padding: 10px 16px 0; border-bottom: 1px solid var(--border); }
+.tab {
+    background: var(--bg);
+    color: var(--green);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 2px 2px 0 0;
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 8px 16px;
+    cursor: pointer;
+    letter-spacing: 1px;
+}
+.tab:hover { background: #122a1a; }
+.tab.active { background: var(--green); color: var(--bg); font-weight: bold; }
+
+.panel { padding: 16px; }
+
+/* ── 表格 ── */
+table.term-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.term-table th, .term-table td {
+    text-align: left;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+}
+.term-table th { color: var(--green); border-bottom: 1px solid var(--green); }
+.term-table tr { cursor: pointer; }
+.term-table tr:hover td { background: rgba(12, 242, 22,0.05); }
+.term-table .num { color: var(--dim); }
+
+/* 文件上传 */
+.file-zone {
+    border: 1px dashed var(--border);
+    padding: 20px;
+    text-align: center;
+    color: var(--dim);
+    margin-bottom: 12px;
+    border-radius: 2px;
+}
+.file-zone:hover { border-color: var(--green); }
+
+/* 通用 */
+.center { text-align: center; }
+.mt { margin-top: 12px; }
+.mb { margin-bottom: 12px; }
+.hidden { display: none; }
+.spin {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid var(--border);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: rot 0.8s linear infinite;
+    vertical-align: middle;
+}
+@keyframes rot { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+    body { font-size: 14px; }
+    .term-window { margin: 10px; }
+}
