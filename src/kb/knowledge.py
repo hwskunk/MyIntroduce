@@ -21,7 +21,7 @@ def _hash_content(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
-def _insert_document(file_path: Path, content: str) -> dict:
+def _insert_document(file_path: Path, content: str, file_size: int | None = None, file_mtime: float | None = None) -> dict:
     """切分 + 入库 + 记录元数据（内容已由调用方解析好，避免重复解析）。"""
     kb = get_kb()
     content_hash = _hash_content(content)
@@ -36,6 +36,7 @@ def _insert_document(file_path: Path, content: str) -> dict:
         doc_id=doc_id, title=title, full_content=content,
         chunk_count=len(chunks), source=source,
         knowledge_path=str(file_path), content_hash=content_hash,
+        file_size=file_size, file_mtime=file_mtime,
     )
     return {"id": doc_id, "title": title, "chunk_count": len(chunks), "char_count": len(content)}
 
@@ -66,6 +67,24 @@ def sync_knowledge_base() -> dict:
 
     # 1) 新增 / 内容变化
     for path_str, fp in data_files.items():
+        # 取文件元数据（大小 + 修改时间），用于快速跳过未变化文件
+        try:
+            st = fp.stat()
+        except OSError:
+            print(f"[Knowledge] 无法读取文件元数据，跳过: {fp.name}")
+            continue
+        existing = indexed.get(path_str)
+
+        # 快速跳过：文件大小与 mtime 都未变 → 无需解析（避免 PDF/Docling OCR 反复执行）
+        if (
+            existing is not None
+            and existing.get("file_size") is not None
+            and existing.get("file_size") == st.st_size
+            and abs((existing.get("file_mtime") or 0.0) - st.st_mtime) < 0.5
+        ):
+            stats["unchanged"] += 1
+            continue
+
         try:
             content = document_loader.parse_file(fp)
         except Exception as e:
@@ -73,17 +92,18 @@ def sync_knowledge_base() -> dict:
             continue
         content_hash = _hash_content(content)
 
-        existing = indexed.get(path_str)
         if existing is None:
-            _insert_document(fp, content)
+            _insert_document(fp, content, st.st_size, st.st_mtime)
             stats["added"].append(fp.name)
             print(f"[Knowledge] 新增文档: {fp.name}")
         elif existing.get("content_hash") != content_hash:
             _delete_document(existing["id"])
-            _insert_document(fp, content)
+            _insert_document(fp, content, st.st_size, st.st_mtime)
             stats["changed"].append(fp.name)
             print(f"[Knowledge] 内容变化，重新入库: {fp.name}")
         else:
+            # 内容未变但缺元数据（旧记录）→ 补记 mtime/size，下次即可快速跳过
+            doc_store.update_document_meta(existing["id"], st.st_size, st.st_mtime)
             stats["unchanged"] += 1
 
     # 2) 已删除文件

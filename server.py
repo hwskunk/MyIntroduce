@@ -32,6 +32,25 @@ app = FastAPI(title="MY_INTRO_KB :: SECURE TERMINAL", version="2.0")
 
 
 # ═══════════════════════════════════════════════════════════════
+# 启动预热：后台构建 RAG 链（含知识库同步/Milvus 初始化），
+# 让首条聊天消息无需等待重依赖加载
+# ═══════════════════════════════════════════════════════════════
+
+@app.on_event("startup")
+async def _warmup_rag_chain():
+    import threading
+
+    def _warm():
+        try:
+            get_chain()
+            print("[Warmup] RAG 链已预热，首条消息可直接流式返回")
+        except Exception as e:
+            print(f"[Warmup] 预热失败（将在首次请求时重试）: {type(e).__name__}: {e}")
+
+    threading.Thread(target=_warm, daemon=True).start()
+
+
+# ═══════════════════════════════════════════════════════════════
 # 工具
 # ═══════════════════════════════════════════════════════════════
 
@@ -70,6 +89,12 @@ def create_session(body: dict):
 def get_config():
     """前端配置：本人姓名等（用于 AI 身份标签显示）。"""
     return {"owner_name": config.YOUR_NAME}
+
+
+@app.get("/api/stats")
+def get_stats():
+    """知识库统计（landing boot 自检显示真实数据）。"""
+    return knowledge.get_stats()
 
 
 @app.get("/api/contacts")

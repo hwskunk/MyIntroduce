@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════
-   MY_INTRO_KB — 终端前端逻辑
+   mint.lu — 终端前端逻辑
    单一持久终端窗口：入口 → 访客聊天(SSE流式) / 管理员后台，
    登录只在同一个窗口内切换内容，不再整体重绘成"新页面"。
    ═══════════════════════════════════════════════════════════ */
@@ -33,8 +33,9 @@ const app = document.getElementById("app");
 app.innerHTML = `
 <div class="term-window">
   <div class="term-titlebar">
-    <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
-    <span class="tb-title" id="win-title">MY_INTRO_KB</span>
+    <span class="tb-logo" id="win-title">mint.lu</span>
+    <span class="tb-version">v2.1</span>
+    <span class="tb-status"><span class="led" id="win-led-dot"></span><span id="win-led">ONLINE</span></span>
   </div>
   <div class="term-status hidden" id="win-status"></div>
   <div class="term-content" id="win-content"></div>
@@ -132,51 +133,101 @@ function setFooter(html, show) {
   footerEl.innerHTML = html || "";
   footerEl.classList.toggle("hidden", !show);
 }
+/* 顶栏状态灯：LED 呼吸绿点 + 文字（BOOT / ONLINE） */
+function setLed(txt, mode) {
+  const dot = document.getElementById("win-led-dot");
+  const label = document.getElementById("win-led");
+  if (dot) dot.className = "led" + (mode === "warn" ? " led-warn" : mode === "off" ? " led-off" : "");
+  if (label) label.textContent = txt || "ONLINE";
+}
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* boot 开机自检行 HTML（签名元素，真实模块与统计） */
+function bootLineHtml(l) {
+  if (l.type === "title") return `<div class="boot-title">${esc(l.text)}</div>`;
+  if (l.type === "sep") return `<div class="boot-sep">${esc(l.text || "─".repeat(26))}</div>`;
+  if (l.type === "ok") {
+    const suffix = l.val ? `<span class="val">  ${esc(l.val)}</span>` : "";
+    return `<div class="boot-line"><span class="pfx-ok">[ OK ]</span> <span class="label">${esc(l.label)}</span>${suffix}</div>`;
+  }
+  if (l.type === "dim") return `<div class="boot-line dim">${esc(l.text || "")}</div>`;
+  return `<div class="boot-line">${esc(l.text || "")}</div>`;
+}
 
 async function api(url, opts = {}) {
   // 公司名通过查询参数传递（HTTP 头不能携带中文）
   const sep = url.includes("?") ? "&" : "?";
   const u = state.company ? `${url}${sep}company=${encodeURIComponent(state.company)}` : url;
-  const resp = await fetch(u, { ...opts, headers: opts.headers || {} });
-  if (!resp.ok) {
-    let msg = "HTTP " + resp.status;
-    try { msg = (await resp.json()).detail || msg; } catch (_) {}
-    throw new Error(msg);
+  // 8s 超时：网络异常时不至于永远"连接中"
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const resp = await fetch(u, { ...opts, signal: ctrl.signal, headers: opts.headers || {} });
+    if (!resp.ok) {
+      let msg = "HTTP " + resp.status;
+      try { msg = (await resp.json()).detail || msg; } catch (_) {}
+      throw new Error(msg);
+    }
+    return resp.json();
+  } catch (e) {
+    if (e && e.name === "AbortError") throw new Error("请求超时：服务无响应，请确认服务在运行");
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  return resp.json();
 }
 
 /* ═══════════════════════════════════════════════════════════
    入口（同一窗口内的"连接"阶段）
    ═══════════════════════════════════════════════════════════ */
-function showLanding() {
-  setTitle("MY_INTRO_KB :: SECURE TERMINAL");
+async function showLanding() {
+  setTitle("mint.lu");
   setStatus("");
-  setContent(`
-    <div class="t-line ok">[ OK ] 知识库服务已就绪</div>
-    <div class="t-line ok">[ OK ] 会话存储在线</div>
-    <div class="t-line dim">&nbsp;</div>
-    <div class="t-line">欢迎访问该个人介绍知识库。</div>
-    <div class="t-line">填写一个【公司名称】即可开始对话，同一名称的来访会留档在同一会话，方便回看。</div>
-    <div class="t-line dim">&nbsp;</div>
+  setContent("");
+  setInput("");
+  setFooter("", false);
+  setLed("BOOT", "warn");
+
+  // boot 开机自检：简洁的就绪仪式（面向访客，不列内部技术细节）
+  const lines = [
+    { type: "title", text: "mint.lu :: INTRO" },
+    { type: "sep" },
+    { type: "ok", label: "知识库已就绪" },
+    { type: "ok", label: "服务运行正常" },
+    { type: "dim", text: "欢迎使用，填写公司名称即可开始对话。" },
+    { type: "sep" },
+  ];
+  for (const l of lines) {
+    contentEl.appendChild(el(bootLineHtml(l)));
+    contentEl.scrollTop = contentEl.scrollHeight;
+    await delay(70);
+  }
+  setLed("ONLINE");
+
+  // 说明面板 + 操作提示（一次出现）
+  contentEl.appendChild(el(`
     <div class="landing-note">
       <div class="ln-title">关于「公司名称」— 无需顾虑</div>
       <div class="t-line dim">· 仅用于留档区分：这条会话单独存档，方便你之后回来查看</div>
-      <div class="t-line dim">· 无需全称或实名：随手写个代号即可，如「阿里」「腾讯」「ABC」</div>
+      <div class="t-line dim">· 无需全称或实名：随手写个代号即可</div>
       <div class="t-line dim">· 仅存于本机数据库：不会公开，也不会提交给任何第三方</div>
       <div class="t-line dim">· 无需任何敏感信息：手机号、邮箱、证件等统统不用填</div>
+    </div>`));
+  // 注意：el() 只返回模板的 firstElementChild，多个并列元素必须包一层容器
+  contentEl.appendChild(el(`
+    <div>
+      <div class="t-line dim center">管理员请直接输入访问密钥进入后台。</div>
+      <div class="t-line dim">&nbsp;</div>
+      <div class="t-line dim center" id="landing-msg">填写公司名称后按回车，或点击「建立连接」开始对话</div>
     </div>
-    <div class="t-line dim">&nbsp;</div>
-    <div class="t-line dim">管理员请直接输入访问密钥进入后台。</div>
-    <div class="t-line">&nbsp;</div>
-    <div class="t-line dim center" id="landing-msg">填写公司名称后按回车，或点击「建立连接」开始对话</div>
-  `);
+  `));
+  contentEl.scrollTop = contentEl.scrollHeight;
+
   setInput(`
     <span class="prompt">访客公司名称&gt;</span>
     <input id="company-input" autofocus autocomplete="off" spellcheck="false" placeholder="例：某某科技有限公司">
     <button class="btn" id="connect-btn">建立连接</button>
   `);
-  setFooter("", false);
 
   const input = document.getElementById("company-input");
   const btn = document.getElementById("connect-btn");
@@ -185,15 +236,13 @@ function showLanding() {
   async function doConnect() {
     const c = input.value.trim();
     if (!c) {
-      msg.className = "t-line center err";
-      msg.textContent = "[ERR] 公司名称不能为空";
+      if (msg) { msg.className = "t-line center err"; msg.textContent = "[ERR] 公司名称不能为空"; }
       return;
     }
-    btn.disabled = true;
-    btn.textContent = "连接中...";
-    msg.className = "t-line center";
-    msg.textContent = "正在建立连接...";
     try {
+      btn.disabled = true;
+      btn.textContent = "连接中...";
+      if (msg) { msg.className = "t-line center"; msg.textContent = "正在建立连接..."; }
       const res = await api("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -204,12 +253,11 @@ function showLanding() {
       localStorage.setItem("mykb_company", state.company);
       localStorage.setItem("mykb_role", state.role);
       // 同一窗口内提示连接成功，再进入对应视图
-      msg.className = "t-line ok";
-      msg.textContent = "连接成功。进入会话窗口...";
+      if (msg) { msg.className = "t-line ok"; msg.textContent = "连接成功。进入会话窗口..."; }
       setTimeout(() => (state.role === "admin" ? showAdmin() : showChat()), 300);
     } catch (e) {
-      msg.className = "t-line center err";
-      msg.textContent = "[ERR] " + e.message;
+      console.error("[doConnect]", e);
+      if (msg) { msg.className = "t-line center err"; msg.textContent = "[ERR] " + (e && e.message ? e.message : e); }
       btn.disabled = false;
       btn.textContent = "建立连接";
     }
@@ -223,7 +271,7 @@ function showLanding() {
    访客聊天（同一窗口）
    ═══════════════════════════════════════════════════════════ */
 function showChat() {
-  setTitle("MY_INTRO_KB :: SESSION");
+  setTitle("mint.lu :: SESSION");
   setStatus(`<span class="conn">[CONN]</span> 已连接 | 访客: ${esc(state.company)}`);
   setContent(`<div class="t-line dim center">加载历史会话...</div>`);
   setInput(`
@@ -351,7 +399,7 @@ function showChat() {
    管理员后台（同一窗口）
    ═══════════════════════════════════════════════════════════ */
 function showAdmin() {
-  setTitle("MY_INTRO_KB :: ADMIN");
+  setTitle("mint.lu :: ADMIN");
   setStatus(`<span class="conn">[ROOT]</span> 管理员后台 | 全部会话 / 知识库管理 / 文档上传`);
   setContent(`
     <div class="tabs">

@@ -27,6 +27,6 @@ Thumbs.db
 # ── 个人资料 / 隐私（不上传 GitHub）──
 data/
 connect.md
-SESSION_SUMMARY_1.md
+SESSION_SUMMARY_*.md
 static/images/
 *.zip

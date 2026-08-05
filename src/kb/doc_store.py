@@ -27,14 +27,17 @@ def _ensure_table(conn: sqlite3.Connection):
             source TEXT NOT NULL DEFAULT 'manual',
             knowledge_path TEXT DEFAULT NULL,
             content_hash TEXT DEFAULT NULL,
+            file_size INTEGER DEFAULT NULL,
+            file_mtime REAL DEFAULT NULL,
             created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
         )
     """)
     # 兼容旧表：新列如果不存在则添加
     cols = [r["name"] for r in conn.execute("PRAGMA table_info(documents)").fetchall()]
-    for col_name in ("knowledge_path", "content_hash"):
+    for col_name in ("knowledge_path", "content_hash", "file_size", "file_mtime"):
         if col_name not in cols:
-            conn.execute(f"ALTER TABLE documents ADD COLUMN {col_name} TEXT DEFAULT NULL")
+            sql_type = "REAL" if col_name == "file_mtime" else ("INTEGER" if col_name == "file_size" else "TEXT")
+            conn.execute(f"ALTER TABLE documents ADD COLUMN {col_name} {sql_type} DEFAULT NULL")
     conn.commit()
 
 
@@ -50,14 +53,29 @@ def add_document(
     source: str = "manual",
     knowledge_path: str = "",
     content_hash: str = "",
+    file_size: int | None = None,
+    file_mtime: float | None = None,
 ):
     conn = _get_conn()
     _ensure_table(conn)
     conn.execute(
-        "INSERT INTO documents (doc_id, title, full_content, chunk_count, char_count, source, knowledge_path, content_hash) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO documents (doc_id, title, full_content, chunk_count, char_count, source, knowledge_path, content_hash, file_size, file_mtime) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (doc_id, title, full_content, chunk_count, len(full_content),
-         source, knowledge_path or None, content_hash or None),
+         source, knowledge_path or None, content_hash or None,
+         file_size, file_mtime),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_document_meta(doc_id: str, file_size: int, file_mtime: float):
+    """补记文件元数据（旧记录无 mtime/size 时，同步时用于快速跳过未变化文件）。"""
+    conn = _get_conn()
+    _ensure_table(conn)
+    conn.execute(
+        "UPDATE documents SET file_size = ?, file_mtime = ? WHERE doc_id = ?",
+        (file_size, file_mtime, doc_id),
     )
     conn.commit()
     conn.close()
@@ -151,6 +169,8 @@ def list_documents_detail() -> list[dict]:
             "source": r["source"],
             "knowledge_path": r["knowledge_path"],
             "content_hash": r["content_hash"],
+            "file_size": r["file_size"],
+            "file_mtime": r["file_mtime"],
             "created_at": r["created_at"],
         }
         for r in rows

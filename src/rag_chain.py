@@ -8,6 +8,7 @@ RAG 流水线 — 组装层（无 Streamlit 依赖）
 """
 import asyncio
 import os
+import threading
 from typing import AsyncIterator
 
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -250,11 +251,17 @@ class RAGChain:
 
 
 _chain: RAGChain | None = None
+_chain_lock = threading.Lock()
 
 
 def get_chain() -> RAGChain:
-    """获取 RAG 链单例（进程内，首次调用时构建）。"""
+    """获取 RAG 链单例（进程内，首次调用时构建）。
+
+    用锁保护，避免并发首次构建（预热线程与请求线程同时进入）。
+    """
     global _chain
     if _chain is None:
-        _chain = RAGChain()
+        with _chain_lock:
+            if _chain is None:
+                _chain = RAGChain()
     return _chain
