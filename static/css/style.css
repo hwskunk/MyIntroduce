@@ -269,6 +269,35 @@ body::before {
 }
 .contact-box .qr-label { color: var(--dim); font-size: 12px; margin-top: 5px; }
 
+/* 索要简历：简历文件区块 */
+.resume-box {
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--green);
+    border-radius: 3px;
+}
+.resume-box .resume-title {
+    color: var(--green);
+    font-size: 12px;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+}
+.resume-box .resume-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.resume-box .resume-btn {
+    display: inline-block;
+    padding: 6px 16px;
+    color: var(--bg);
+    background: var(--green);
+    border: 1px solid var(--green);
+    border-radius: 3px;
+    font-size: 13px;
+    text-decoration: none;
+    letter-spacing: 1px;
+}
+.resume-box .resume-btn:hover { filter: brightness(1.15); }
+
 /* ── markdown 内容样式（终端主题）── */
 .msg .body p { margin: 0 0 8px; }
 .msg .body p:last-child { margin-bottom: 0; }

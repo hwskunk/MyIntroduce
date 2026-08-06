@@ -30,6 +30,38 @@ CONTACT_TOOL = {
     },
 }
 
+RESUME_TOOL_NAME = "provide_resume"   # 访客索要简历文件时触发的工具名
+RESUME_TOOL = {
+    "type": "function",
+    "function": {
+        "name": RESUME_TOOL_NAME,
+        "description": "当来访者明确索要、查看或下载简历文件时调用（例如：发一份简历给我看看、可以看一下你的简历吗、简历发我一下）。"
+                       "调用后系统会自动向来访者展示简历文件的查看/下载按钮，仅用文字回复无法完成简历交付，必须调用本工具。"
+                       "注意：来访者只是询问简历中的具体内容（学历、技能、项目等）时，请直接从知识库回答，不要调用本工具。",
+        "parameters": {"type": "object", "properties": {}, "required": []},
+    },
+}
+
+# 用户侧防误触发：明确询问简历"内容"（而非索要文件）时，即使模型误调工具也不交付简历
+CONTENT_QUERY_MARKERS = (
+    "里写了什么", "写了什么", "里面有什么", "包含什么", "有什么内容",
+    "有哪些内容", "内容包括", "内容是什么", "写了哪些", "里面都写了",
+)
+REQUEST_MARKERS = ("发", "给", "看", "要", "寄", "发送", "提供", "发来")
+
+
+# 索要简历的文本兜底短语：抓"用户索要"与"模型交付"两类语义。
+# 不含裸"简历"，避免"简历里有什么"这类内容询问误触发。
+RESUME_MARKERS = (
+    # 用户索要（模型常把"索要"当纯文字回复，需兜底）
+    "发一份简历", "发份简历", "发简历", "简历发", "简历给我",
+    "看下简历", "看一下简历", "看看简历", "简历看看", "看看你的简历",
+    "看下你的简历", "简历发我", "给我一份简历", "给我看看简历",
+    "把简历", "简历给您",
+    # 模型交付语（模型回复"这就为您发送简历文件"等却没调工具）
+    "发送简历", "简历文件", "为您发送", "这是我的简历",
+)
+
 
 def _load_contacts() -> list[tuple[str, str]]:
     """读取 connect.md，解析为 (标签, 值) 列表。
@@ -79,6 +111,14 @@ def _contacts_payload() -> dict:
     }
 
 
+def _resume_payload() -> dict:
+    """简历交付 payload（供 SSE 独立事件下发，前端渲染成查看/下载区块）。"""
+    return {
+        "view_url": "/api/resume",
+        "download_url": "/api/resume?download=1",
+    }
+
+
 def _build_system_prompt(context: str) -> str:
     """个人介绍助理系统提示（含检索上下文）。"""
     return f"""你是 {config.YOUR_NAME} 的个人介绍助理。你的职责是帮助来访者（如HR、面试官、合作伙伴）全面了解 {config.YOUR_NAME}。
@@ -100,6 +140,9 @@ def _build_system_prompt(context: str) -> str:
    ① 先用一句自然友好的话回应，这句话中**必须包含"知识库暂未收录"或"暂未收录"**（例如："关于这个问题，我的知识库暂未收录相关信息，暂时无法准确回答"）
    ② 然后**必须**调用工具 {CONTACT_TOOL_NAME}（这是硬性要求，不调用工具任务就无法完成）
    系统会自动展示全部联系方式，你**不要**自己罗列。能正常回答且不涉及联系方式的问题，绝不调用该工具。
+8. **简历文件 vs 简历内容（重要区分）**：
+   ① 来访者只是询问简历中的具体内容（如"你的简历里写了什么""你的学历/技能/项目是什么"）时，请像回答其他问题一样**直接、详细地回答**，可以自由罗列教育背景、技能、项目等信息，**绝对不要**调用工具，也**不要**说"不能复述"之类的话。
+   ② 只有当来访者**明确索要简历文件本身**（如"发一份简历给我""看看你的简历""简历发我一下""把你的简历发给我"）时，你必须调用工具 {RESUME_TOOL_NAME}（这是硬性要求，仅用文字回复简历文件无法展示给对方）。调用后系统会自动展示简历文件按钮，你只需简单回应一句即可。
 
 如果来访者的问题比较宽泛（如"介绍一下你自己"），请给出一个全面的概述，涵盖教育、技能、项目、职业方向等方面。
 
@@ -193,21 +236,35 @@ class RAGChain:
             if delta:
                 yield delta
 
+    async def _stream_resume_reply(self, question: str) -> AsyncIterator[str]:
+        """索要简历：生成一句自然的交付语（简历文件由系统独立下发）。"""
+        sys_msg = SystemMessage(content=(
+            f"你是 {config.YOUR_NAME} 的个人介绍助理。来访者向你索要了简历文件。\n"
+            "请用自然、友好、得体的语气简短回应（30 字以内），表示乐意提供简历，"
+            "不要描述简历内容（系统会自动展示简历文件按钮），不要使用 emoji。"
+        ))
+        async for chunk in self.llm.astream([sys_msg, HumanMessage(content=question)]):
+            delta = getattr(chunk, "content", None)
+            if delta:
+                yield delta
+
     async def stream_answer(self, input_text: str, chat_history: list | None = None, summary: str | None = None) -> AsyncIterator[dict]:
         """SSE 流式生成（知识库外问题会触发联系方式工具）。
 
         Yield:
             {"type": "delta", "text": str}                文本增量
             {"type": "contacts", "contacts": [...]}       知识库外：独立联系方式块
+            {"type": "resume", "resume": {...}}           索要简历：独立简历文件块
             {"type": "done", "sources": [...]}            结束
         """
         # 检索为阻塞操作（embedding API + BM25），放线程池避免阻塞事件循环
         messages, sources = await asyncio.to_thread(self.prepare, input_text, chat_history, summary)
         tool_triggered = False
+        resume_triggered = False
         streamed: list[str] = []
 
         try:
-            llm_with_tools = self.llm_tool.bind_tools([CONTACT_TOOL])
+            llm_with_tools = self.llm_tool.bind_tools([RESUME_TOOL, CONTACT_TOOL])
             async for chunk in llm_with_tools.astream(messages):
                 delta = getattr(chunk, "content", None)
                 if delta:
@@ -216,6 +273,8 @@ class RAGChain:
                 for tc in getattr(chunk, "tool_call_chunks", []) or []:
                     if tc.get("name") == CONTACT_TOOL_NAME:
                         tool_triggered = True
+                    elif tc.get("name") == RESUME_TOOL_NAME:
+                        resume_triggered = True
         except Exception as e:
             # 工具调用模式不可用（模型/网关不支持等）→ 回退普通流式
             print(f"[RAG] 工具调用模式失败，回退普通模式: {type(e).__name__}: {e}")
@@ -235,6 +294,20 @@ class RAGChain:
             "没有相关", "未找到相关", "未检索到",
         )
         text_not_found = any(m in answer_text for m in NOT_FOUND_MARKERS)
+        text_resume = any(m in answer_text for m in RESUME_MARKERS)
+
+        # 索要简历：优先于联系方式处理（简历场景不应触发联系方式）。
+        # 用户侧防误触发：询问简历"内容"（非索要文件）时，即使模型误调工具也不交付。
+        is_content_query = any(m in input_text for m in CONTENT_QUERY_MARKERS)
+        has_request = any(m in input_text for m in REQUEST_MARKERS)
+        resume_requested = not (is_content_query and not has_request)
+        if (resume_triggered or text_resume) and resume_requested:
+            if not answer_text.strip():
+                async for delta in self._stream_resume_reply(input_text):
+                    yield {"type": "delta", "text": delta}
+            yield {"type": "resume", "resume": _resume_payload()}
+            yield {"type": "done", "sources": sources}
+            return
 
         if tool_triggered or text_not_found:
             # 知识库外：模型未输出有效语句时才生成自然语句；然后独立下发联系方式

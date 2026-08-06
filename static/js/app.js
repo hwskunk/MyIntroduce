@@ -116,6 +116,19 @@ function renderContacts(items, images) {
   }
   return box;
 }
+
+/* 索要简历：简历文件区块（查看 / 下载） */
+function renderResume(data) {
+  const v = (data && data.view_url) || "/api/resume";
+  const d = (data && data.download_url) || "/api/resume?download=1";
+  return el(`<div class="resume-box">
+    <div class="resume-title">RESUME :: 简历文件</div>
+    <div class="resume-actions">
+      <a class="resume-btn" href="${esc(v)}" target="_blank" rel="noopener">查看简历</a>
+      <a class="resume-btn" href="${esc(d)}" download>下载简历</a>
+    </div>
+  </div>`);
+}
 function setTitle(t) { titleEl.textContent = t; }
 function setStatus(html) {
   statusEl.innerHTML = html || "";
@@ -296,9 +309,12 @@ function showChat() {
       const s = el(`<div class="sources">参考来源：${sources.map(esc).join("，")}</div>`);
       m.appendChild(s);
     }
-    // 历史消息：原消息附带联系方式区块时重新渲染
+    // 历史消息：原消息附带联系方式/简历区块时重新渲染
     if (meta && meta.contacts && contactsCache) {
       m.appendChild(renderContacts(contactsCache.items || [], contactsCache.images || []));
+    }
+    if (meta && meta.resume) {
+      m.appendChild(renderResume(meta.resume === true ? null : meta.resume));
     }
     msgBox.appendChild(m);
     msgBox.scrollTop = msgBox.scrollHeight;
@@ -343,6 +359,7 @@ function showChat() {
       let full = "";
       let sources = [];
       let contactsData = null;
+      let resumeData = null;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -365,6 +382,8 @@ function showChat() {
               sources = data.sources || [];
             } else if (data.contacts) {
               contactsData = data.contacts;
+            } else if (data.resume) {
+              resumeData = data.resume;
             } else if (data.error) {
               throw new Error(data.error);
             }
@@ -378,6 +397,9 @@ function showChat() {
       }
       if (contactsData && (contactsData.items || contactsData.images)) {
         aiEl.appendChild(renderContacts(contactsData.items || [], contactsData.images || []));
+      }
+      if (resumeData) {
+        aiEl.appendChild(renderResume(resumeData));
       }
       if (!full) bodyEl.innerHTML = renderMessage(whoLabel("ai"), "抱歉，知识库中暂时没有找到相关信息。");
     } catch (e) {

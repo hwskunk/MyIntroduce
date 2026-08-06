@@ -14,6 +14,7 @@ milvus_data/
 __pycache__/
 *.pyc
 *.pyo
+*.log
 .venv/
 venv/
 
@@ -29,4 +30,5 @@ data/
 connect.md
 SESSION_SUMMARY_*.md
 static/images/
+resume.pdf
 *.zip

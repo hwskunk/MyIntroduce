@@ -17,6 +17,7 @@ MILVUS_DB_PATH = MILVUS_DIR / "my_intro_kb.db"   # Milvus Lite 单文件库
 MEMORY_DB_PATH = _BASE_DIR / "conversations.db"  # 会话记忆 SQLite
 DOCSTORE_DB_PATH = _BASE_DIR / "knowledge.db"    # 文档元数据 SQLite
 CONTACT_FILE = _BASE_DIR / "connect.md"          # 联系方式清单（独立于知识库，避免污染检索上下文）
+RESUME_FILE = _BASE_DIR / "resume.pdf"           # 简历源文件（独立于知识库，访客索要简历时交付）
 
 # ── 加载 .env（Key 一律从环境变量读取，禁止硬编码）──
 ENV_PATH = _BASE_DIR / ".env"

@@ -103,6 +103,19 @@ def get_contacts():
     return _contacts_payload()
 
 
+@app.get("/api/resume")
+def get_resume(download: bool = False):
+    """简历文件（访客索要简历时，由前端链接查看/下载）。"""
+    path = config.RESUME_FILE
+    if not path.exists():
+        raise HTTPException(404, "简历文件不存在")
+    return FileResponse(
+        str(path), media_type="application/pdf",
+        filename=f"{config.YOUR_NAME}-简历.pdf",
+        content_disposition_type="attachment" if download else "inline",
+    )
+
+
 @app.get("/api/thread/history")
 def thread_history(company: str = Query(..., description="公司名")):
     company = (company or "").strip()
@@ -140,6 +153,7 @@ async def chat(body: dict):
         full = []
         sources = []
         show_contacts = False
+        show_resume = False
         try:
             async for evt in chain.stream_answer(message, history, summary):
                 t = evt.get("type")
@@ -149,12 +163,20 @@ async def chat(body: dict):
                 elif t == "contacts":
                     show_contacts = True
                     yield {"data": json.dumps({"contacts": evt["contacts"]}, ensure_ascii=False)}
+                elif t == "resume":
+                    show_resume = True
+                    yield {"data": json.dumps({"resume": evt["resume"]}, ensure_ascii=False)}
                 elif t == "done":
                     sources = evt.get("sources") or []
 
-            # 记账：附带联系方式的消息打标记，刷新后前端可重新渲染联系区块
+            # 记账：附带联系方式/简历的消息打标记，刷新后前端可重新渲染区块
             answer = "".join(full)
-            meta = {"contacts": True} if show_contacts else None
+            meta = None
+            if show_contacts:
+                meta = {"contacts": True}
+            if show_resume:
+                meta = dict(meta or {})
+                meta["resume"] = True
             memory.add_message(thread, "assistant", answer, meta=meta)
             memory.maybe_summarize(thread)
             yield {"data": json.dumps({"done": True, "sources": sources}, ensure_ascii=False)}
