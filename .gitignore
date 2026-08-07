@@ -32,3 +32,11 @@ SESSION_SUMMARY_*.md
 static/images/
 resume.pdf
 *.zip
+
+# ── 测试产物（本地保留，不入库）──
+test_runner.py
+测试问题集.md
+test_results.json
+test_results.jsonl
+test_report.md
+_*.txt
