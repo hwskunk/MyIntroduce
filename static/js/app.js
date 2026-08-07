@@ -321,12 +321,35 @@ function showChat() {
     return m;
   }
 
+  // 新会话欢迎语：前端打字机效果逐字流出（不写入会话历史，刷新后重新出现）
+  async function typeWelcome() {
+    const m = el(`<div class="msg ai"><div class="body"></div></div>`);
+    msgBox.appendChild(m);
+    const bodyEl = m.querySelector(".body");
+    let name = "本人";
+    try {
+      const cfg = await api("/api/config");
+      name = cfg.owner_name || name;
+    } catch (e) { /* 拿不到名字就用默认称呼 */ }
+    const text = `你好！我是${name}，欢迎${state.company}的访客。你可以问我关于我的教育背景、技能、项目经验、获奖经历等问题，也可以直接向我要我的简历。有什么想了解的，尽管问吧！`;
+    let i = 0;
+    await new Promise(resolve => {
+      const timer = setInterval(() => {
+        i += 2;
+        bodyEl.innerHTML = renderMessage(whoLabel("ai"), text.slice(0, i));
+        msgBox.scrollTop = msgBox.scrollHeight;
+        if (i >= text.length) { clearInterval(timer); resolve(); }
+      }, 24);
+    });
+  }
+
   async function loadHistory() {
     try {
       const { messages } = await api("/api/thread/history");
       msgBox.innerHTML = "";
       if (!messages.length) {
         msgBox.appendChild(el(`<div class="t-line dim center">[INFO] 新会话，发送第一条消息开始吧。</div>`));
+        await typeWelcome();
       } else {
         if (!contactsCache) await loadContactsCache();
         for (const m of messages) appendMsg(m.role, m.content, null, m.meta);
